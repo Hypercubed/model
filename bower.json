@@ -37,5 +37,6 @@
     "bootstrap": "~3.2.0"
   },
   "dependencies": {
+    "object.observe": "git@github.com:MaxArt2501/object-observe.git#~0.2.4"
   }
 }

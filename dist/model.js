@@ -1,7 +1,7 @@
 // ModelJS v0.2.1
 //
 // https://github.com/curran/model
-// 
+//
 // Last updated by Curran Kelleher March 2015
 //
 // Includes contributions from
@@ -69,8 +69,8 @@
     //    * on the next tick of the JavaScript event loop after properties change,
     //    * only once as a result of one or more synchronous changes to dependency properties.
     function when(properties, callback, thisArg){
-      
-      // Make sure the default `this` becomes 
+
+      // Make sure the default `this` becomes
       // the object you called `.on` on.
       thisArg = thisArg || this;
 
@@ -79,17 +79,19 @@
 
       // This function will trigger the callback to be invoked.
       var listener = debounce(function (){
+
         var args = properties.map(function(property){
-          return values[property];
+          return model[property];
         });
+
         if(allAreDefined(args)){
           callback.apply(thisArg, args);
         }
       });
 
       // Trigger the callback once for initialization.
-      listener();
-      
+      //listener();
+
       // Trigger the callback whenever specified properties change.
       properties.forEach(function(property){
         on(property, listener);
@@ -106,7 +108,7 @@
       getListeners(property).push(callback);
       track(property, thisArg);
     }
-    
+
     // Gets or creates the array of listener functions for a given property.
     function getListeners(property){
       return listeners[property] || (listeners[property] = []);
@@ -116,8 +118,8 @@
     function track(property, thisArg){
       if(!(property in trackedProperties)){
         trackedProperties[property] = true;
-        values[property] = model[property];
-        Object.defineProperty(model, property, {
+        //values[property] = model[property];
+        /* Object.defineProperty(model, property, {
           get: function () { return values[property]; },
           set: function(newValue) {
             var oldValue = values[property];
@@ -126,7 +128,7 @@
               callback.call(thisArg, newValue, oldValue);
             });
           }
-        });
+        }); */
       }
     }
 
@@ -152,17 +154,32 @@
       }
     }
 
-    // Transfer defaults passed into the constructor to the model.
-    set(defaults);
-
     // Public API.
     model.when = when;
     model.cancel = cancel;
     model.on = on;
     model.off = off;
     model.set = set;
+
+    Object.observe(model, function(changes) {
+      changes.forEach(function(change) {
+
+        var name = change.name;
+        var newValue = change.object[name] || undefined;
+        var oldValue = change.oldValue ? change.oldValue[change.name] : undefined;
+
+        getListeners(name).forEach(function(callback){
+          callback.call(model, newValue, oldValue);
+        });
+
+      });
+    });
+
+    // Transfer defaults passed into the constructor to the model.
+    set(defaults);
+
   }
-  
+
   // Model.None is A representation for an optional Model property that is not specified.
   // Model property values of null or undefined are not propagated through
   // to when() listeners. If you want the when() listener to be invoked, but
