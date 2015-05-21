@@ -67,9 +67,7 @@
       var newValue = change.object[name] || undefined;
       var oldValue = change.oldValue ? change.oldValue[change.name] : undefined;
 
-      getListeners(change.object, name).forEach(function(callback){
-        callback.call(change.object, newValue, oldValue);
-      });
+      change.object.emit(name, newValue, oldValue);
 
     });
   }
@@ -81,17 +79,11 @@
 
   Model.prototype.unobserve = function unobserve(){
     Object.unobserve(this, $$changeListener);
+
     this.$$values = null;
     this.$$listeners = null;
     this.$$trackedProperties = null;
   };
-
-  // Tracks a property if it is not already tracked. private
-  function track(model, property, thisArg) {
-    if(!(property in model.$$trackedProperties)){
-      model.$$trackedProperties[property] = true;
-    }
-  }
 
   // Gets or creates the array of listener functions for a given property. private
   function getListeners(model, property){
@@ -106,10 +98,27 @@
     }
   };
 
+  // Adds a change listener for a given property with Backbone-like behavior.
+  // Similar to http://backbonejs.org/#Events-on
+  Model.prototype.on = function on(property, callback, thisArg){
+    thisArg = thisArg || this;
+    getListeners(this, property).push(callback);
+    if(!(property in this.$$trackedProperties)){
+      this.$$trackedProperties[property] = true;
+    }
+  };
+
   // Removes a change listener added using `on`.
   Model.prototype.off = function off(property, callback){
     this.$$listeners[property] = this.$$listeners[property].filter(function (listener) {
       return listener !== callback;
+    });
+  };
+
+  Model.prototype.emit = function emit(property, newValue, oldValue){
+    var model = this;
+    getListeners(this, property).forEach(function(callback){
+      callback.call(model, newValue, oldValue);
     });
   };
 
@@ -118,14 +127,6 @@
     for(var property in this.$$listeners){
       this.off(property, listener);
     }
-  };
-
-  // Adds a change listener for a given property with Backbone-like behavior.
-  // Similar to http://backbonejs.org/#Events-on
-  Model.prototype.on = function on(property, callback, thisArg){
-    thisArg = thisArg || this;
-    getListeners(this, property).push(callback);
-    track(this, property, thisArg);
   };
 
   // The functional reactive "when" operator.
@@ -158,9 +159,6 @@
         callback.apply(thisArg, args);
       }
     });
-
-    // Trigger the callback once for initialization.
-    //listener();
 
     // Trigger the callback whenever specified properties change.
     properties.forEach(function(property){
