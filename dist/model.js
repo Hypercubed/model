@@ -15,6 +15,8 @@
 // so it does not pullute the global namespace.
 (function(){
 
+  var EventEmitter = require('events').EventEmitter;
+
   // Returns a debounced version of the given function.
   // See http://underscorejs.org/#debounce
   function debounce(callback){
@@ -44,14 +46,7 @@
       return new Model(defaults);
     }
 
-    // The internal stored values for tracked properties. { property -> value }
-    this.$$values = {};
-
-    // The callback functions for each tracked property. { property -> [callback] }
-    this.$$listeners = {};
-
-    // The set of tracked properties. { property -> true }
-    this.$$trackedProperties = {};
+    EventEmitter.call(this);
 
     this.observe();
 
@@ -60,7 +55,11 @@
 
   }
 
-  function $$changeListener(changes) {
+  Model.prototype.on = EventEmitter.prototype.on;
+  Model.prototype.off = EventEmitter.prototype.removeListener;
+  Model.prototype.emit = EventEmitter.prototype.emit;
+
+  function $$observer(changes) {
     changes.forEach(function(change) {
 
       var name = change.name;
@@ -72,27 +71,13 @@
     });
   }
 
-  Model.prototype.observe = function unobserve(){
-    var model = this;
-    Object.observe(model, $$changeListener);
+  Model.prototype.observe = function observe(){
+    Object.observe(this, $$observer);
   };
 
   Model.prototype.unobserve = function unobserve(){
-    Object.unobserve(this, $$changeListener);
-
-    this.$$trackedProperties.forEach(function(property) {
-      this.$$listeners[property] = null;
-    });
-    
-    this.$$values = null;
-    this.$$listeners = null;
-    this.$$trackedProperties = null;
+    Object.unobserve(this, $$observer);
   };
-
-  // Gets or creates the array of listener functions for a given property. private
-  function getListeners(model, property){
-    return model.$$listeners[property] || (model.$$listeners[property] = []);
-  }
 
   // Sets all of the given values on the model.
   // `newValues` is an object { property -> value }.
@@ -102,33 +87,9 @@
     }
   };
 
-  // Adds a change listener for a given property with Backbone-like behavior.
-  // Similar to http://backbonejs.org/#Events-on
-  Model.prototype.on = function on(property, callback, thisArg){
-    thisArg = thisArg || this;
-    getListeners(this, property).push(callback);
-    if(!(property in this.$$trackedProperties)){
-      this.$$trackedProperties[property] = true;
-    }
-  };
-
-  // Removes a change listener added using `on`.
-  Model.prototype.off = function off(property, callback){
-    this.$$listeners[property] = this.$$listeners[property].filter(function (listener) {
-      return listener !== callback;
-    });
-  };
-
-  Model.prototype.emit = function emit(property, newValue, oldValue){
-    var model = this;
-    getListeners(this, property).forEach(function(callback){
-      callback.call(model, newValue, oldValue);
-    });
-  };
-
   // Cancels a listener returned by a call to `model.when(...)`.
   Model.prototype.cancel = function cancel(listener){
-    for(var property in this.$$listeners){
+    for(var property in this._events){
       this.off(property, listener);
     }
   };
